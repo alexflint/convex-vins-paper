@@ -1,0 +1,89 @@
+% Latin abbreviations
+\newcommand\etal{\textit{et al.}\xspace}
+\newcommand\ie{\textit{i.e.}\xspace}
+\newcommand\eg{\textit{e.g.}\xspace}
+\newcommand\cf{\textit{c.f.}\xspace}
+\newcommand\etc{\textit{etc.}\xspace}
+
+% References
+\newcommand\figref[1]{Figure \ref{fig:#1}}
+\newcommand\Figref[1]{Figure \ref{fig:#1}}
+\newcommand\secref[1]{Section \ref{sec:#1}}
+\newcommand\Secref[1]{Section \ref{sec:#1}}
+\newcommand\sectref[1]{Section \ref{sec:#1}}
+\newcommand\Sectref[1]{Section \ref{sec:#1}}
+\newcommand\chapref[1]{Chapter \ref{chap:#1}}
+\newcommand\Chapref[1]{Chapter \ref{chap:#1}}
+\newcommand\tableref[1]{Table \ref{table:#1}}
+\newcommand\Tableref[1]{Table \ref{table:#1}}
+\newcommand\algref[1]{Algorithm \ref{alg:#1}}
+\newcommand\Algref[1]{Algorithm \ref{alg:#1}}
+\newcommand\eqnref[1]{\eqref{#1}}
+
+% Counters
+\renewcommand\th[0]{\textsuperscript{th}\xspace}
+\newcommand\st[0]{\textsuperscript{st\xspace}}
+\newcommand\nd[0]{\textsuperscript{nd\xspace}}
+\newcommand\rd[0]{\textsuperscript{rd\xspace}}
+
+% Generic
+\newcommand\degrees{^\circ}
+\newcommand\vect[1]{\boldsymbol{#1}}
+\newcommand\grad{\nabla}
+\newcommand\xor{\oplus}
+\newcommand\union\cup
+\newcommand\abs[1]{\lvert#1\rvert}
+\newcommand\norm[1]{\lVert#1\rVert}
+\newcommand\argmax{\operatorname{argmax}}
+\newcommand\argmin{\operatorname{argmin}}
+\newcommand{\concat}{\ensuremath{+\!\!\!\!+\,}}
+\newcommand\sign{\operatorname{Sign}}
+
+% Analysis
+\newcommand\intd{\mathrm{d}}   % for the 'dx' in integrals
+\newcommand\NormalDistr{\mathcal{N}}
+\newcommand\Expected{\mathbb{E}}
+\newcommand\Deriv[2]{\frac{\partial #1}{\partial #2}}
+\newcommand\EvalAt[1]{\biggl|_{#1}}
+
+% Fields
+\newcommand\field[1]{\mathbb{#1}}
+\newcommand\Reals{\field{R}}
+\newcommand\Rtwo{\Reals^2}
+\newcommand\Rthree{\Reals^3}
+\newcommand\Rfour{\Reals^4}
+\newcommand\Ints{\field{Z}}
+
+% Problem-specific stuff
+\newcommand\Identity{I}
+\newcommand\cross{\times}
+\renewcommand{\vec}[1]{\mathbf{#1}}
+
+\newcommand\Accel{\vec{\alpha}}
+\newcommand\AccelNoise{\vec{n_\Accel}}
+\newcommand\AccelCov{\Sigma_\Accel}
+
+\newcommand\Gyro{\vec{\alpha}}
+\newcommand\GyroNoise{\vec{n_\Gyro}}
+\newcommand\GyroCov{\Sigma_\Gyro}
+
+\newcommand\Feature{\vec{z}}
+\newcommand\FeatureNoise{\vec{n_\Feature}}
+\newcommand\FeatureCov{\Sigma_\Feature}
+
+\newcommand\Position{\vec{p}}
+\newcommand\LinearAccel{\ddot{\Position}}
+\newcommand\Gravity{\vec{g}}
+\newcommand\Bias{\vec{b_a}}
+\newcommand\AngularVelocity{\dot{R}}
+\newcommand\GyroBias{\vec{b_g}}
+\newcommand\Landmark{\vec{x}}
+
+\newcommand\SplineCoef{b}
+\newcommand\SplineCoefs{B}
+\newcommand\SplineAccelCoefs{A}
+\newcommand\Control{\vec{c}}
+\newcommand\Controls{\vec{c}}
+
+\newcommand\AllVars{\Controls,\Gravity,\Bias,\{\Landmark_j\}}
+\newcommand\Tol{\gamma}

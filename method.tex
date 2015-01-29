@@ -1,0 +1,333 @@
+\section{Second order cone programming}
+
+A convex program is an optimization problem of the form
+\begin{equation}
+    \begin{aligned}
+    & \text{minimize} & & f(\Landmark) \\
+    & \text{subject to} & & h_i(\Landmark) \geq 0 ~~~~~~ i = 1,\ldots,N
+  \end{aligned}
+\end{equation}
+where $f$ is a convex function and $\{\Landmark : h_i(\Landmark) \geq 0 ~\forall i\}$
+is a convex set. All convex programs can be solved \cite{boyd}, but
+certain problem classes permit particularly efficient solutions. One
+such class is the second--order cone program (SOCP), which has the
+form
+\begin{equation}
+  \begin{aligned}
+    & \text{minimize} & & \vec{f}^T \Landmark & \\
+    & \text{subject to} & & 
+    \|A_i\Landmark+\vec{b}_i\|_2 \leq \vec{c}_i^T\Landmark + d_i & i =
+    1,\ldots,N \\
+    & & & G_j\Landmark = \vec{h}_j & j = 1,\ldots,M
+  \end{aligned}
+  \label{generic-socp}
+\end{equation}
+SOCP problems can be solved efficiently using primal--dual interior
+point methods \cite{boyd} and several off--the--shelf solvers are
+available \cite{mosek,cvxopt,cvx}.
+
+\section{Problem Statement}
+
+We wish to estimate the trajectory of a mobile device given three
+types of sensor measurements: accelerometer readings, gyro readings,
+and image features. These quantities will be estimated with respect to
+an arbitrary (not necessarily gravity--aligned) frame of reference we
+will call the world frame. We now describe models for each sensor.
+
+Accelerometer measurements are sampled according to
+\begin{equation}
+  \Accel = R (\LinearAccel + \Gravity) + \Bias + \AccelNoise
+\end{equation}
+where $R$ is the orientation of the device in the world frame,
+$\LinearAccel$ is the acceleration of the device in the world frame,
+$\Gravity$ is the gravity vector in the world frame, $\Bias$ is an
+additive bias term, and $\AccelNoise$ is a Gaussian white noise term
+with covariance $\AccelCov$. Whereas we assume that the bias $\Bias$
+is fixed for all sensor measurements \footnotemark, the noise term is
+$\AccelNoise$ is sampled independently for each measurement.
+
+\footnotetext{this is a reasonable assumption for MEMS sensors
+as found on modern cell phones for trajectories of up to several minutes}
+
+Gyro measurements are sampled according to
+\begin{equation}
+  \Gyro = R \AngularVelocity + \GyroBias + \GyroNoise
+\end{equation}
+where $\AngularVelocity$ is the angular velocity of the device in the
+world frame, $\GyroBias$ is an additive bias, and $\GyroNoise$ is a
+Gaussian white noise term with covariance $\GyroCov$.
+
+Finally, image measurements are sampled according to
+\begin{equation}
+  \Feature = \Pr(K R (\Landmark - \Position)) + \FeatureNoise
+\end{equation}
+where $R$ and $p$ are respectively the orientation and position of the
+device in the world frame at the time the feature was, $K$ is the
+camera intrinsics, $\Landmark$ is the world coordinates of the
+landmark giving rise to the feature, and $\FeatureNoise$ is a Gaussian
+white noise term with covariance $\FeatureCov$. $\Pr$ is the
+projection function,
+\begin{equation}
+  \Pr\Bigl(\begin{bmatrix}x\\y\\z\end{bmatrix}\Bigr) =
+    \frac{1}{z}\begin{bmatrix}x\\y\end{bmatrix}
+\end{equation}
+
+\subsection{Trajectory representation}
+
+We choose to parametrize the trajectory of the device as a cubic
+B--spline, as described in \cite{furgale,lovegrove}. Given
+control points $\Control_1,\cdots,\Control_K$, $\Control_i \in
+\Reals$, the position of the device at time $t$ is,
+\begin{equation}
+  \Position = \sum \SplineCoef_i(t) \Control_i
+\end{equation}
+where $\SplineCoef_1,\cdots,\SplineCoef_K$ are the spline basis
+functions, which depend only on time and can be computed using the de
+Boor--Cox formula \cite{deboor1978}. For brevity, we concatenate the
+control points into a vector
+$\Controls=(\Controls_1,\cdots,\Controls_K)$ and write
+\begin{equation}
+  \Position = \SplineCoefs_t \Controls
+\end{equation}
+where
+\begin{equation}
+  \SplineCoefs_t =
+  \begin{bmatrix}
+    \SplineCoef_1(t) \Identity_{3 \cross 3} &
+    \cdots &
+    \SplineCoef_K(t) \Identity_{3 \cross 3}
+  \end{bmatrix} ~.
+\end{equation}
+The spline parametrization is attractive for our purposes because the
+position of the device is linear in the control points $\Controls$,
+since $\SplineCoefs$ is a functionly only of time, which is
+known. Furthermore, acceleration is also linear in the control points,
+\begin{eqnarray}
+  \LinearAccel &=& \SplineAccelCoefs_t \Controls \\
+  \SplineAccelCoefs_t &=&
+  \begin{bmatrix}
+    \frac{d^2\SplineCoef_1(t)}{dt^2} \Identity_{3 \cross 3} &
+    \cdots &
+    \frac{d^2\SplineCoef_K(t)}{dt^2} \Identity_{3 \cross 3}
+  \end{bmatrix}
+\end{eqnarray}
+The second derivatives $\frac{d^2\SplineCoef_K}{dt^2}$ are simple to
+compute using the de Boor--Cox formula \cite{deboor1978}.
+
+\subsection{Relative frame of reference}
+
+We assume that estimates are available for the relative orientation of
+the device over short time periods; that is, that we know $R_1^TR_2$
+where $R_1$ and $R_2$ are the orientation of the device at any two
+points within the time window being considered. Such relative
+orientation estimates are easy to obtain by integrating angular
+velocity measurements from a gyro as described in
+\cite{StergiosOrientationFilter} or, if video frames are available at
+the relevant times, by estimating the epipolar geometry for the two
+images \cite{Zisserman}. We use the approach described in
+\cite{Whatever}, which combines data from the gyro with epipolar
+geometry constraints derived from feature correspondences.
+
+By concatenating these relative orientations together, we may compute
+the relative orientation between the device at the beginning of the
+trajectory (time $t_0$) and its orientation at any other
+time. Therefore, without loss of generality we henceforth define the
+world frame to be the frame of reference of the device at $t_0$. The
+positions and orientations of the other frames, as well as the
+positions of the landmarks and the gravity vector will be expressed in
+this frame.
+
+\section{SOCP formulation for visual inertial navigation}
+
+We now formulate the visual inertial navigation problem described in
+the previous section as a second--order cone program. The variables we
+wish to estimate are:
+\begin{enumerate}
+\item{The control points $\Controls$ parametrizing the trajectory.}
+\item{The landmark coordinates $\Landmark_1,\cdots,\Landmark_M$}
+\item{The accelerometer bias $\Bias$}
+\item{The gravity vector $\Gravity$}
+\end{enumerate}
+Note that, as described above, we assume that relative orientation
+estimates between the first frame and all other times are available,
+so we do not directly estimate any rotation matrices. We do
+\textit{not} assume that knowledge of the orientation of any frame
+relative to gravity; this is captured by including the direction of
+gravity as an unknown.
+
+Given the sensor models described in the previous section, the maximum
+likelihood estimate for all variables is obtained by solving
+\begin{equation}
+  \begin{aligned}
+    & \underset{\AllVars}{\text{minimize}}
+    & & \sum \| \hat{\Accel_i} - \Accel_i \|_{\AccelCov}^2 +
+    \sum \| \hat{\Feature_i} - \Feature_i \|_{\FeatureCov}^2
+  \end{aligned}
+  \label{unconstrained-cost}
+\end{equation}
+where
+\begin{eqnarray}
+  \hat{\Accel_i} &=& R_i (\SplineAccelCoefs_i \Controls + \Gravity) + \Bias \\
+  \hat{\Feature_{i}} &=& \Pr(K R_i (\Landmark_j - \SplineCoefs_i \Controls)) ~.
+\end{eqnarray}
+In the remainder of this section we re--cast this problem as an SOCP
+of the form \eqnref{generic-socp}.
+
+\subsection{Feature constraints}
+
+While the first term in \eqnref{unconstrained-cost} is a linear least
+squares cost and is therefore convex, the second term is non--convex
+due to the non--linear projection function $\Pr(\cdot)$.  We therefore
+replace this term with a set of constraints,
+\begin{equation}
+  \begin{aligned}
+    & \underset{\AllVars}{\text{minimize}}
+    & & \sum \| \hat{\Accel_i} - \Accel_i \|_{\AccelCov}^2 \\
+    & \text{subject to}
+    & & \| \hat{\Feature_i} - \Feature_i \| \leq \Tol
+    ~~~~~~
+    i = 1,\ldots,N
+  \end{aligned}
+  \label{constrained-cost}
+\end{equation}
+where $\Tol$ is a user--specified parameter, typically set to some
+multiple of the expected feature noise. While this modified problem is
+not precisely equivalent to \eqnref{unconstrained-cost}, it has the
+distinct advantage of being globally convex, as we show
+below. Furthermore, we show in the results section that solutions to
+this modified problem closely approximate solutions to
+\eqnref{unconstrained-cost} for real--world data.
+
+We now define $\hat{\vec{y}_i} = K R_i (\Landmark_j - \SplineCoefs_i \Controls)$ and
+expand the constraints in \eqnref{constrained-cost} as follows.
+\begin{eqnarray}
+  \| \hat{\Feature_i} - \Feature_i \| &\leq& \Tol \\
+  \Bigl\| \frac{1}{\hat{\vec{y}_{i3}}}
+  \begin{bmatrix}
+    \hat{\vec{y}_{i1}} \\
+      \hat{\vec{y}_{i2}}
+  \end{bmatrix}
+  - \Feature_i \Bigr\| &\leq& \Tol \\
+  \Bigl\|
+  \begin{bmatrix}
+    \hat{\vec{y}_{i1}} \\
+      \hat{\vec{y}_{i2}}
+  \end{bmatrix} 
+  - \Feature_i \hat{\vec{y}_{i3}} \Bigr\| &\leq& \Tol \hat{\vec{y}_{i3}}
+\end{eqnarray}
+Now, expanding
+$K=\begin{bmatrix}\vec{k_1}&\vec{k_2}&\vec{k_3}\end{bmatrix}^T$ and
+$\vec{\Feature_i}=\begin{bmatrix}\Feature_{i1}&\Feature_{i1}\end{bmatrix}^T$
+we have
+\begin{equation}
+  \begin{split}
+  \Bigl\|
+  \begin{bmatrix}
+    \vec{k_1}^T R_i (\Landmark_j - \SplineCoefs_i \Controls)
+    - \Feature_{i1} \vec{k_3}^T R_i (\Landmark_j - \SplineCoefs_i \Controls)\\
+    \vec{k_2}^T R_i (\Landmark_j - \SplineCoefs_i \Controls)
+    - \Feature_{i2} \vec{k_3}^T R_i (\Landmark_j - \SplineCoefs_i \Controls)\\
+  \end{bmatrix} 
+  \Bigr\|\\
+  \leq
+  \Tol \vec{k_3}^T R_i (\Landmark_j - \SplineCoefs_i \Controls)
+  \end{split}
+\end{equation}
+Finally we define
+\begin{eqnarray*}
+  Q_i &=& \begin{bmatrix}
+    -\vec{k_1}^TR_i - \Feature_{i1} \vec{k_3}^T R_i &
+    \Feature_{i1}\vec{k_3}^TR_i \SplineCoefs_i - \vec{k_1}^T R_i
+    \SplineCoefs_i \\
+    -\vec{k_2}^TR_i - \Feature_{i2} \vec{k_3}^T R_i &
+    \Feature_{i2}\vec{k_3}^TR_i \SplineCoefs_i - \vec{k_2}^T R_i
+    \SplineCoefs_i
+  \end{bmatrix} \\
+  \vec{s}_i &=& \begin{bmatrix}
+    -\Tol \vec{k_3}^T R_i \SplineCoefs_i &
+    \Tol \vec{k_3}^T R_i
+  \end{bmatrix}^T
+  \label{socp-constraints}
+\end{eqnarray*}
+and rewrite the original optimization problem as
+\begin{equation}
+  \begin{aligned}
+    & \underset{\AllVars}{\text{minimize}}
+    & & \sum \| \hat{\Accel_i} - \Accel_i \|_{\AccelCov}^2 \\
+    & \text{subject to}
+    & &
+    \Bigl\| Q_i \begin{bmatrix}\Controls\\\Landmark_i\end{bmatrix} \Bigr\| \leq
+    {\vec{s}_i}^T \begin{bmatrix}\Controls\\\Landmark_i\end{bmatrix}
+    ~~~~~~
+    i = 1,\ldots,N
+  \end{aligned}
+  \label{first-transform}
+\end{equation}
+Note that neither $Q_i$ nor $\vec{s}_i$ depend on any variables over
+which we are optimizing, so the constraints above are second order
+cone constraints of the form \eqnref{generic-socp}.
+
+\subsection{Accelerometer Constraints}
+Although the constraints in \eqnref{first-transform} have the desired
+form, the objective in \eqnref{constrained-cost} is quadratic so does
+not conform to the linear objective in \eqnref{generic-socp}. To
+address this, we begin by expanding the objective,
+\begin{eqnarray}
+  \sum \| \hat{\Accel_i} - \Accel_i \|^2 &=&
+  \sum \| R_i (\SplineAccelCoefs_i \Controls + \Gravity) + \Bias -
+  \Accel_i \|^2\\
+  &=& \| J \vec{w} - \vec{r} \|^2 \\
+  &=& \vec{w}^T J^T J \vec{w} - 2 \vec{w}^T J^T \vec{r} + \vec{r}^T\vec{r}
+\end{eqnarray}
+where in the second line we defined
+\begin{eqnarray}
+  \vec{w} &=& \begin{bmatrix}\Controls&\Gravity&\Bias\end{bmatrix}^T \\
+  \vec{r} &=& \begin{bmatrix} \Accel_1 & \cdots &
+    \Accel_N \end{bmatrix}^T \\
+  J &=& \begin{bmatrix}
+    R_1\SplineAccelCoefs_1 & R_1 & \Identity \\
+    \vdots & \vdots & \vdots \\
+    R_N\SplineAccelCoefs_N & R_N & \Identity
+  \end{bmatrix}
+\end{eqnarray}
+We now replace the quadratic objective in \eqnref{first-transform}
+with a linear objective and a quadratic constraint,
+\begin{equation}
+  \begin{aligned}
+    & \underset{\AllVars}{\text{minimize}} & & \lambda \\
+    & \text{subject to}
+    & & \vec{w}^T J^T J \vec{w} - 2 \vec{w}^T J^T \vec{r} +
+    \vec{r}^T\vec{r} \leq \lambda \\
+    & & &
+    \Bigl\| Q_i \begin{bmatrix}\Controls\\\Landmark_i\end{bmatrix} \Bigr\| \leq
+    {\vec{s}_i}^T \begin{bmatrix}\Controls\\\Landmark_i\end{bmatrix}
+    ~~~~~~
+    i = 1,\ldots,N
+  \end{aligned}
+  \label{second-transform}
+\end{equation}
+Finally, we rewrite this quadratic constraint as a second--order cone
+constraint,
+\begin{equation}
+  \begin{aligned}
+    & \underset{\AllVars}{\text{minimize}} & & \lambda \\
+    & \text{subject to}
+    & & \begin{split}
+          \Bigl\| \begin{bmatrix}
+            1 - 2\vec{w}^T J^T \vec{r} + \vec{r}^T\vec{r} - \lambda \\
+            2 J \vec{w}
+          \end{bmatrix} \Bigr\| \\
+          \leq
+          1 + 2 \vec{w}^T J^T \vec{r} - \vec{r}^T\vec{r} + \lambda
+        \end{split}\\
+    & & &
+    \Bigl\| Q_i \begin{bmatrix}\Controls\\\Landmark_i\end{bmatrix} \Bigr\| \leq
+    {\vec{s}_i}^T \begin{bmatrix}\Controls\\\Landmark_i\end{bmatrix}
+    ~~~~~~
+    i = 1,\ldots,N
+  \end{aligned}
+  \label{final-problem}
+\end{equation}
+Note again that neither $J$ nor $\vec{r}$ depend on the variables over
+which we are optimizing, so \eqnref{final-problem} has the desired form
+\eqnref{generic-socp}.
